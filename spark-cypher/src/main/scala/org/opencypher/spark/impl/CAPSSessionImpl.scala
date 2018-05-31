@@ -81,14 +81,16 @@ sealed class CAPSSessionImpl(val sparkSession: SparkSession)
     val drivingTable = maybeDrivingTable.getOrElse(CAPSRecords.unit())
     val inputFields = drivingTable.asCaps.header.fieldsAsVar
 
-    val (stmt, extractedLiterals, semState) = time("AST construction")(parser.process(query, inputFields)(CypherParser.defaultContext))
+    val modifiedQuery = experimentalMGSyntaxCreateMerge(query)
+
+    val (stmt, extractedLiterals, semState) = time("AST construction")(parser.process(modifiedQuery, inputFields)(CypherParser.defaultContext))
 
     val extractedParameters: CypherMap = extractedLiterals.mapValues(v => CypherValue(v))
     val allParameters = queryParameters ++ extractedParameters
 
     logStageProgress("IR translation ...", newLine = false)
 
-    val irBuilderContext = IRBuilderContext.initial(query, allParameters, semState, ambientGraphNew, qgnGenerator, catalog.listSources, inputFields)
+    val irBuilderContext = IRBuilderContext.initial(modifiedQuery, allParameters, semState, ambientGraphNew, qgnGenerator, catalog.listSources, inputFields)
     val irOut = time("IR translation")(IRBuilder.process(stmt)(irBuilderContext))
 
     val ir = IRBuilder.extract(irOut)
