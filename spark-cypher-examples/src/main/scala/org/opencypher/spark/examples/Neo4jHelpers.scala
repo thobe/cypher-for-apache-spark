@@ -26,6 +26,9 @@
  */
 package org.opencypher.spark.examples
 
+import java.net.URI
+
+import org.neo4j.driver.v1.Session
 import org.neo4j.graphdb.Result
 import org.neo4j.harness.{ServerControls, TestServerBuilders}
 import org.opencypher.spark.api.io.neo4j.Neo4jConfig
@@ -59,5 +62,25 @@ object Neo4jHelpers {
       .withFixture("CALL dbms.security.createUser('anonymous', 'password', false)")
       .withFixture(dataFixture)
       .newServer()
+  }
+
+  def connectLocally(
+    fixture: String,
+    user: String,
+    pw: String,
+    host: String = "bolt://localhost",
+    port: Int = 7687
+  ): Neo4jSession = {
+    val config = Neo4jConfig(URI.create(s"$host:$port"), user = user, password = Some(pw))
+    val session = config.driver().session()
+    session.run(fixture)
+    Neo4jSession(session, config)
+  }
+
+  case class Neo4jSession(session: Session, config: Neo4jConfig) {
+    def close(): Unit = {
+      session.run("MATCH (n) DETACH DELETE n")
+      session.close()
+    }
   }
 }
