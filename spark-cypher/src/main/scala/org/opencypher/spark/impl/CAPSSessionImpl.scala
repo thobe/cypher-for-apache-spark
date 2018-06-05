@@ -35,7 +35,6 @@ import org.opencypher.okapi.api.table.CypherRecords
 import org.opencypher.okapi.api.value.CypherValue._
 import org.opencypher.okapi.api.value._
 import org.opencypher.okapi.impl.io.SessionGraphDataSource
-import org.opencypher.okapi.impl.util.Measurement
 import org.opencypher.okapi.impl.util.Measurement.printTiming
 import org.opencypher.okapi.ir.api._
 import org.opencypher.okapi.ir.api.configuration.IrConfiguration.PrintIr
@@ -50,8 +49,6 @@ import org.opencypher.okapi.relational.impl.physical.PhysicalPlanner
 import org.opencypher.spark.api.CAPSSession
 import org.opencypher.spark.impl.CAPSConverters._
 import org.opencypher.spark.impl.physical._
-
-import scala.concurrent.duration.Duration
 
 sealed class CAPSSessionImpl(val sparkSession: SparkSession)
   extends CAPSSession
@@ -81,16 +78,14 @@ sealed class CAPSSessionImpl(val sparkSession: SparkSession)
     val drivingTable = maybeDrivingTable.getOrElse(CAPSRecords.unit())
     val inputFields = drivingTable.asCaps.header.fieldsAsVar
 
-    val modifiedQuery = experimentalMGSyntaxCreateMerge(query)
-
-    val (stmt, extractedLiterals, semState) = time("AST construction")(parser.process(modifiedQuery, inputFields)(CypherParser.defaultContext))
+    val (stmt, extractedLiterals, semState) = time("AST construction")(parser.process(query, inputFields)(CypherParser.defaultContext))
 
     val extractedParameters: CypherMap = extractedLiterals.mapValues(v => CypherValue(v))
     val allParameters = queryParameters ++ extractedParameters
 
     logStageProgress("IR translation ...", newLine = false)
 
-    val irBuilderContext = IRBuilderContext.initial(modifiedQuery, allParameters, semState, ambientGraphNew, qgnGenerator, catalog.listSources, inputFields)
+    val irBuilderContext = IRBuilderContext.initial(query, allParameters, semState, ambientGraphNew, qgnGenerator, catalog.listSources, inputFields)
     val irOut = time("IR translation")(IRBuilder.process(stmt)(irBuilderContext))
 
     val ir = IRBuilder.extract(irOut)
